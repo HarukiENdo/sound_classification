@@ -83,18 +83,15 @@ def train(args):
 
     # --------------Model setup---------------------------
     if args.model == "resnet34":
-        resnet_model = resnet34(pretrained=False)
-        resnet_model.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-        resnet_model.fc = nn.Linear(512,output_class_number)
-        model = resnet_model.to(device)
+        model = resnet34(pretrained=False)
+        model.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        model.fc = nn.Linear(512,output_class_number)
     
-
-    model = resnet_model.to(device)        
+    model.to(device)
     summary(model, input_size=(1, spectrogram_height, spectrogram_width))
 
     loss_fn = nn.CrossEntropyLoss()
-    optimiser = torch.optim.Adam(resnet_model.parameters(),
-                                    lr=args.learning_rate)    
+    optimiser = torch.optim.Adam(model.parameters(), lr=args.learning_rate)    
     scaler = torch.cuda.amp.GradScaler()
     epochs = args.epochs
     loss_training_epochs = []
@@ -102,7 +99,7 @@ def train(args):
 
     # --------------Training loop---------------------------
     exec_time_start_time = time.time()
-    early_stopping = EarlyStopping(patience=7,verbose=True)
+    early_stopping = EarlyStopping(patience=7, verbose=True)
     for i in range(epochs):
         print(f"Epoch {i+1}")    
         # Training
@@ -110,9 +107,9 @@ def train(args):
         y_true_train, y_pred_train = [], []
         for input, target in tqdm(train_data_loader):
             optimiser.zero_grad()
-            input, target = input.to(device,dtype=torch.float32), target.to(device)
+            input, target = input.to(device, dtype=torch.float32), target.to(device)
             # calculate loss
-            with torch.amp.autocast('cuda', dtype=torch.float16):
+            with torch.cuda.amp.autocast():
                 prediction = model(input)
                 loss = loss_fn(prediction, target)
             scaler.scale(loss).backward()
