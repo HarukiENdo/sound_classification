@@ -118,7 +118,7 @@ def train(args):
     if args.loss == "cross_entropy":
         loss_fn = nn.CrossEntropyLoss()
     elif args.loss == "focal_loss":
-        loss_fn = FocalLoss(num_classes=output_class_number)
+        loss_fn = FocalLoss()
 
     if args.optimizer == "adam":
         optimiser = torch.optim.Adam(model.parameters(), lr=args.learning_rate)    

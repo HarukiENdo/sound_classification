@@ -1,42 +1,34 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
 
 class FocalLoss(nn.Module):
-    def __init__(self, alpha=None, gamma=2, logits=False, reduce=True, num_classes=9):
+    def __init__(self, alpha=1, gamma=2, reduction='mean'):
         super(FocalLoss, self).__init__()
-        if alpha is None:
-            self.alpha = torch.ones(num_classes)  # num_classesをクラス数に設定
-        elif isinstance(alpha, (float, int)):
-            self.alpha = torch.Tensor([alpha] * num_classes)
-        else:
-            self.alpha = alpha
+        self.alpha = alpha
         self.gamma = gamma
-        self.logits = logits
-        self.reduce = reduce
-
+        self.reduction = reduction
+    
     def forward(self, inputs, targets):
-        if self.logits:
-            BCE_loss = F.cross_entropy_with_logits(inputs, targets, reduction='none')
-        else:
-            BCE_loss = F.cross_entropy(inputs, targets, reduction='none')
-        pt = torch.exp(-BCE_loss)
+        # inputs: [batch_size, num_classes] 予測確率（ロジット）
+        # targets: [batch_size] 正解クラスのインデックス
+        BCE_loss = F.cross_entropy(inputs, targets, reduction='none')
+        pt = torch.exp(-BCE_loss)  # 正解クラスに対するモデルの確信度
+        F_loss = self.alpha * (1-pt)**self.gamma * BCE_loss
         
-        # alphaをtargetsのデバイスに移動
-        if self.alpha.device != targets.device:
-            self.alpha = self.alpha.to(targets.device)
-        
-        # デバッグ用: targetsの値をチェック
-        if torch.any(targets >= len(self.alpha)):
-            raise ValueError("targets contains values out of range for alpha")
-
-        # alphaをtargetsの形状にブロードキャスト
-        alpha_t = self.alpha[targets.data.view(-1).long()].view_as(targets)
-        
-        F_loss = alpha_t * (1 - pt) ** self.gamma * BCE_loss
-
-        if self.reduce:
+        if self.reduction == 'mean':
             return torch.mean(F_loss)
+        elif self.reduction == 'sum':
+            return torch.sum(F_loss)
         else:
             return F_loss
+
+if __name__ == '__main__':
+    num_classes = 5
+    batch_size = 10
+    inputs = torch.randn(batch_size, num_classes, requires_grad=True)
+    targets = torch.randint(0, num_classes, (batch_size,))
+    
+    loss_func = FocalLoss()
+    loss = loss_func(inputs, targets)
+    print(loss)
