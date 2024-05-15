@@ -4,32 +4,39 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 class FocalLoss(nn.Module):
-    def __init__(self, gamma=0, alpha=None, size_average=True):
+    def __init__(self, alpha=None, gamma=2, logits=False, reduce=True, num_classes=9):
         super(FocalLoss, self).__init__()
+        if alpha is None:
+            self.alpha = torch.ones(num_classes)  # num_classesをクラス数に設定
+        elif isinstance(alpha, (float, int)):
+            self.alpha = torch.Tensor([alpha] * num_classes)
+        else:
+            self.alpha = alpha
         self.gamma = gamma
-        self.alpha = alpha
-        if isinstance(alpha,(float,int,long)): self.alpha = torch.Tensor([alpha,1-alpha])
-        if isinstance(alpha,list): self.alpha = torch.Tensor(alpha)
-        self.size_average = size_average
+        self.logits = logits
+        self.reduce = reduce
 
-    def forward(self, input, target):
-        if input.dim()>2:
-            input = input.view(input.size(0),input.size(1),-1)  # N,C,H,W => N,C,H*W
-            input = input.transpose(1,2)    # N,C,H*W => N,H*W,C
-            input = input.contiguous().view(-1,input.size(2))   # N,H*W,C => N*H*W,C
-        target = target.view(-1,1)
+    def forward(self, inputs, targets):
+        if self.logits:
+            BCE_loss = F.cross_entropy_with_logits(inputs, targets, reduction='none')
+        else:
+            BCE_loss = F.cross_entropy(inputs, targets, reduction='none')
+        pt = torch.exp(-BCE_loss)
+        
+        # alphaをtargetsのデバイスに移動
+        if self.alpha.device != targets.device:
+            self.alpha = self.alpha.to(targets.device)
+        
+        # デバッグ用: targetsの値をチェック
+        if torch.any(targets >= len(self.alpha)):
+            raise ValueError("targets contains values out of range for alpha")
 
-        logpt = F.log_softmax(input)
-        logpt = logpt.gather(1,target)
-        logpt = logpt.view(-1)
-        pt = Variable(logpt.data.exp())
+        # alphaをtargetsの形状にブロードキャスト
+        alpha_t = self.alpha[targets.data.view(-1).long()].view_as(targets)
+        
+        F_loss = alpha_t * (1 - pt) ** self.gamma * BCE_loss
 
-        if self.alpha is not None:
-            if self.alpha.type()!=input.data.type():
-                self.alpha = self.alpha.type_as(input.data)
-            at = self.alpha.gather(0,target.data.view(-1))
-            logpt = logpt * Variable(at)
-
-        loss = -1 * (1-pt)**self.gamma * logpt
-        if self.size_average: return loss.mean()
-        else: return loss.sum()
+        if self.reduce:
+            return torch.mean(F_loss)
+        else:
+            return F_loss
