@@ -23,5 +23,5 @@
 初回実行時は `chmod +x experiments.sh` を実行して権限を付与してください。
 
 ### 実行方法
-`./experiments.sh <experiment_name>`
+`nohup ./experiments.sh <experiment_name> &`
 
