@@ -32,6 +32,7 @@ import torch.cuda.amp as amp
 from loss import FocalLoss
 from contextlib import redirect_stdout
 import yaml
+from models import CNNNetwork1, CNNNetwork2, CNNNetwork3, CNNNetwork4
 
 print("-------------------Cuda check-------------------")
 print("Cuda availability: ",torch.cuda.is_available())
@@ -97,7 +98,19 @@ def train(args):
         model = resnet50(pretrained=True)
         model.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
         model.fc = nn.Linear(2048,output_class_number)
-    
+    elif args.model == "cnn_network1":
+        print("model cnn_network1")
+        model = CNNNetwork1()
+    elif args.model == "cnn_network2":
+        print("model cnn_network2")
+        model = CNNNetwork2()
+    elif args.model == "cnn_network3":
+        print("model cnn_network3")
+        model = CNNNetwork3()
+    elif args.model == "cnn_network4":
+        print("model cnn_network4")
+        model = CNNNetwork4()
+      
     model.to(device)
     summary(model, input_size=(1, spectrogram_height, spectrogram_width))
 
