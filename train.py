@@ -147,6 +147,8 @@ def train(args):
     loss_validation_epochs = []
     exec_time_start_time = time.time()
     early_stopping = EarlyStopping(patience=7, verbose=True)
+    best_val_loss = float('inf')
+    best_val_acc = 0.0
     for i in range(epochs):
         print(f"Epoch {i+1}")    
         loss_training_single_epoch_array = []
@@ -217,6 +219,8 @@ def train(args):
         print(f"Training accuracy : {classification_report_train['accuracy']} ; Training loss : {loss_training_single_epoch}  ")
         print(f"Validation accuracy : {classification_report_val['accuracy']} ; Validation loss : {loss_validation_single_epoch} ")        
         print("---------------------------")
+
+
 
         # Early stopping check
         early_stopping(loss_validation_single_epoch)
@@ -307,6 +311,7 @@ def main(args):
     if args.wandb:
       wandb.init(entity="hideaki_yjm", name=f"{args.model}_optimizer_{args.optimizer}_loss_{args.loss}_lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}", project=args.project_name, config=args)
     train(args)
+    wandb.finish()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -367,4 +372,3 @@ if __name__ == "__main__":
     parser.add_argument('--wandb', action='store_true', help='Use wandb for logging')
     args = parser.parse_args()
     main(args)
-    wandb.finish()
