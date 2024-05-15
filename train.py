@@ -100,16 +100,16 @@ def train(args):
         model.fc = nn.Linear(2048,output_class_number)
     elif args.model == "cnn_network1":
         print("model cnn_network1")
-        model = CNNNetwork1()
+        model = CNNNetwork1(spectrogram_height, spectrogram_width, output_class_number)
     elif args.model == "cnn_network2":
         print("model cnn_network2")
-        model = CNNNetwork2()
+        model = CNNNetwork2(spectrogram_height, spectrogram_width, output_class_number)
     elif args.model == "cnn_network3":
         print("model cnn_network3")
-        model = CNNNetwork3()
+        model = CNNNetwork3(spectrogram_height, spectrogram_width, output_class_number)
     elif args.model == "cnn_network4":
         print("model cnn_network4")
-        model = CNNNetwork4()
+        model = CNNNetwork4(spectrogram_height, spectrogram_width, output_class_number)
       
     model.to(device)
     summary(model, input_size=(1, spectrogram_height, spectrogram_width))
