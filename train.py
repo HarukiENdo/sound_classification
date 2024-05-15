@@ -15,7 +15,7 @@ from torch.utils.data import WeightedRandomSampler
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
-from torchvision.models import resnet34
+from torchvision.models import resnet18, resnet34, resnet50
 import time
 import wandb
 import csv
@@ -28,7 +28,8 @@ import os
 from dataset import AudioDataset
 from utils import *
 import random
-
+import torch.cuda.amp as amp
+from loss import FocalLoss
 
 
 print("-------------------Cuda check-------------------")
@@ -46,7 +47,6 @@ def collate_fn(batch):
 
 
 def train(args):
-
     NUM_SAMPLES = int(args.sample_rate*args.duration_ms/1000)
     CLASS_NAMES = ['car','cut','environ','fruit','leaf','talk','truck','unknown','walk']
     #------------Parameters setup -------------------------
@@ -55,24 +55,23 @@ def train(args):
     win_length_samples = int(NUM_SAMPLES*win_length_ms/1000)
     hop_length_samples = int(NUM_SAMPLES*hop_length_ms/1000)
     #------------Name setup --------------------------------
-    output_dir = f"./experiment/{args.project_name}/lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}"
+    output_dir = f"./experiment/{args.project_name}/{args.model}_lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     #------------Training setup ----------------------------
     device = device_check(display_device = True)
     train_dataset = AudioDataset(csv_path='/Corpus3/crime_prevention_sound/train.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device) 
-    val_dataset = AudioDataset(csv_path='/Corpus3/crime_prevention_sound/val.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device) #validデータのデータセットを分けて作成
-    test_dataset = AudioDataset(csv_path='/Corpus3/crime_prevention_sound/test.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device) #testデータのデータセットを分けて作成
-    
+    val_dataset = AudioDataset(csv_path='/Corpus3/crime_prevention_sound/val.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device) 
+    test_dataset = AudioDataset(csv_path='/Corpus3/crime_prevention_sound/test.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device)    
     train_data_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=True, num_workers=8, pin_memory=True)
-    val_data_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=True, num_workers=8, pin_memory=True)
-    test_data_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=True, num_workers=8, pin_memory=True)
+    val_data_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False, num_workers=8, pin_memory=False)
+    test_data_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False, num_workers=8, pin_memory=False)
     
     # サンプルデータの取得
     audio_sample_path = "/Corpus3/crime_prevention_sound/dataset/dataset_20231107/environ/20231101_2_終了_00009672.wav"
     signal_sample, sr = librosa.load(audio_sample_path, sr=16000)
     mel_spectrogram = librosa.feature.melspectrogram(y=signal_sample, sr=sr, n_fft=win_length_samples, win_length=win_length_samples, hop_length=hop_length_samples, n_mels=args.n_mels)
-    mel_spectrogram = librosa.power_to_db(mel_spectrogram, ref=np.max)  # デシベルスケールに変換
+    mel_spectrogram = librosa.power_to_db(mel_spectrogram, ref=np.max)  
     mel_spectrogram = np.expand_dims(mel_spectrogram, axis=0)
     print("Shape of sample spectrogram: ", mel_spectrogram.shape)
     
@@ -82,17 +81,39 @@ def train(args):
 
 
     # --------------Model setup---------------------------
-    if args.model == "resnet34":
-        model = resnet34(pretrained=False)
+    if args.model == "resnet18":
+        print("model resnet18")
+        model = resnet18(pretrained=True)
         model.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
         model.fc = nn.Linear(512,output_class_number)
+    elif args.model == "resnet34": 
+        print("model resnet34")
+        model = resnet34(pretrained=True)
+        model.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        model.fc = nn.Linear(512,output_class_number)
+    elif args.model == "resnet50":
+        print("model resnet50")
+        model = resnet50(pretrained=True)
+        model.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        model.fc = nn.Linear(2048,output_class_number)
     
     model.to(device)
     summary(model, input_size=(1, spectrogram_height, spectrogram_width))
 
-    loss_fn = nn.CrossEntropyLoss()
-    optimiser = torch.optim.Adam(model.parameters(), lr=args.learning_rate)    
-    scaler = torch.cuda.amp.GradScaler()
+    # --------------Training setup---------------------------
+    if args.loss == "cross_entropy":
+        loss_fn = nn.CrossEntropyLoss()
+    elif args.loss == "focal_loss":
+        loss_fn = FocalLoss()
+
+    if args.optimizer == "adam":
+        optimiser = torch.optim.Adam(model.parameters(), lr=args.learning_rate)    
+    elif args.optimizer == "adamw":
+        optimiser = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=0.01)
+    if args.amp:
+        scaler = torch.cuda.amp.GradScaler()
+    else:
+        scaler = None
     epochs = args.epochs
     loss_training_epochs = []
     loss_validation_epochs = []
@@ -102,16 +123,17 @@ def train(args):
     early_stopping = EarlyStopping(patience=7, verbose=True)
     for i in range(epochs):
         print(f"Epoch {i+1}")    
-        # Training
         loss_training_single_epoch_array = []
         y_true_train, y_pred_train = [], []
         for input, target in tqdm(train_data_loader):
             optimiser.zero_grad()
             input, target = input.to(device, dtype=torch.float32), target.to(device)
-            # calculate loss
-            with torch.cuda.amp.autocast():
+            if args.amp:
+                with torch.cuda.amp.autocast():
+                    prediction = model(input)
+            else:
                 prediction = model(input)
-                loss = loss_fn(prediction, target)
+            loss = loss_fn(prediction, target)
             scaler.scale(loss).backward()
             scaler.step(optimiser)
             scaler.update()
@@ -121,7 +143,6 @@ def train(args):
         exec_time = time.time() - exec_time_start_time 
         loss_training_single_epoch = np.array(loss_training_single_epoch_array).mean()
         loss_training_epochs.append(loss_training_single_epoch)
-    
         classification_report_train = classification_report(y_true_train, y_pred_train, target_names=CLASS_NAMES, output_dict=True)
     
         # Validation
@@ -200,7 +221,6 @@ def train(args):
                     labels=CLASS_NAMES)})
             wandb.log({"pr" : wandb.plot.pr_curve(y_true_val, y_pred_val_proba,
                     labels=CLASS_NAMES)})
-
 
     print("Finished training")
     print("---------------------------")
@@ -291,8 +311,11 @@ if __name__ == "__main__":
     parser.add_argument(
       '--model',
       type=str,
-      default="resnet34",
+      default="resnet18",
       help='Model name',)
+    parser.add_argument('--amp', action='store_true', default=True, help='Use mixed precision')
+    parser.add_argument('--loss', type=str, default="cross_entropy", help='Loss function')
+    parser.add_argument('--optimizer', type=str, default="adamw", help='Optimizer')
     parser.add_argument('--wandb', action='store_true', help='Use wandb for logging')
     args = parser.parse_args()
     main(args)
