@@ -151,7 +151,7 @@ def train(args):
         print(f"Epoch {i+1}")    
         loss_training_single_epoch_array = []
         y_true_train, y_pred_train = [], []
-        for input, target in tqdm(train_data_loader):
+        for batch_idx, (input, target) in enumerate(tqdm(train_data_loader)):
             optimiser.zero_grad()
             input, target = input.to(device, dtype=torch.float32), target.to(device)
             if args.amp:
@@ -160,12 +160,27 @@ def train(args):
             else:
                 prediction = model(input)
             loss = loss_fn(prediction, target)
-            scaler.scale(loss).backward()
-            scaler.step(optimiser)
-            scaler.update()
+            if args.amp:
+                scaler.scale(loss).backward()
+                scaler.step(optimiser)
+                scaler.update()
+            else:
+                loss.backward()
+                optimiser.step()
             loss_training_single_epoch_array.append(loss.item())
             y_true_train.extend(target.cpu().numpy())
             y_pred_train.extend(torch.argmax(prediction, dim=1).cpu().numpy())
+            # イテレーション単位で精度を計算
+            correct_predictions = (torch.argmax(prediction, dim=1) == target).sum().item()
+            accuracy = correct_predictions / input.size(0)
+
+            # イテレーション単位でログを取る
+            if args.wandb:
+                wandb.log({
+                    "iteration": i * len(train_data_loader) + batch_idx,
+                    "train_loss_iter": loss.item(),
+                    "train_acc_iter": accuracy * 100
+                })
         exec_time = time.time() - exec_time_start_time 
         loss_training_single_epoch = np.array(loss_training_single_epoch_array).mean()
         loss_training_epochs.append(loss_training_single_epoch)
@@ -183,7 +198,14 @@ def train(args):
             y_true_val.extend(target.cpu().numpy())
             y_pred_val_proba.extend(prediction.cpu().detach().numpy()) #TODO: double check if original array is modified
             y_pred_val.extend(torch.argmax(prediction, dim=1).cpu().numpy())
-        
+            # イテレーション単位で精度を計算
+            correct_predictions = (torch.argmax(prediction, dim=1) == target).sum().item()
+            accuracy = correct_predictions / input.size(0)
+            if args.wandb:
+                wandb.log({
+                    "val_loss_iter": loss.item(),
+                    "val_acc_iter": accuracy * 100,
+                })
         loss_validation_single_epoch = np.array(loss_validation_single_epoch_array).mean()
         loss_validation_epochs.append(loss_validation_single_epoch)
     
@@ -283,7 +305,7 @@ def train(args):
 def main(args):
     seed_everything(args.seed)
     if args.wandb:
-      wandb.init(entity="hideaki_yjm", name=f"{args.project_name}_lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}", project=args.project_name, config=args)
+      wandb.init(entity="hideaki_yjm", name=f"{args.model}_optimizer_{args.optimizer}_loss_{args.loss}_lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}", project=args.project_name, config=args)
     train(args)
 
 if __name__ == "__main__":
