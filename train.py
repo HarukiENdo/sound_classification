@@ -34,11 +34,6 @@ import random
 print("-------------------Cuda check-------------------")
 print("Cuda availability: ",torch.cuda.is_available())
 print("Torch version: ", torch.__version__)
-x = torch.rand(5, 3)
-print("Matrix creation check: ", x)
-print("Matrix allocation check: ", torch.tensor([0.1, 0.2]).cuda())
-print("Driver info: ")
-
 
 
 def collate_fn(batch):
@@ -55,18 +50,15 @@ def train(args):
     NUM_SAMPLES = int(args.sample_rate*args.duration_ms/1000)
     CLASS_NAMES = ['car','cut','environ','fruit','leaf','talk','truck','unknown','walk']
     #------------Parameters setup -------------------------
-    # config = wandb.config
     win_length_ms = args.window_size
     hop_length_ms = int(win_length_ms/3)
     win_length_samples = int(NUM_SAMPLES*win_length_ms/1000)
     hop_length_samples = int(NUM_SAMPLES*hop_length_ms/1000)
-    # workspace_name = "workspace_{}".format(PROJECT_NAME)
     #------------Name setup --------------------------------
-    output_dir = f"./experiment/{args.project_name}_lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}"
+    output_dir = f"./experiment/{args.project_name}/lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     #------------Training setup ----------------------------
-    
     device = device_check(display_device = True)
     train_dataset = AudioDataset(csv_path='/Corpus3/crime_prevention_sound/train.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device) 
     val_dataset = AudioDataset(csv_path='/Corpus3/crime_prevention_sound/val.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device) #validデータのデータセットを分けて作成
@@ -90,10 +82,13 @@ def train(args):
 
 
     # --------------Model setup---------------------------
-    resnet_model = resnet34(pretrained=False)
-    resnet_model.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-    resnet_model.fc = nn.Linear(512,output_class_number)
+    if args.model == "resnet34":
+        resnet_model = resnet34(pretrained=False)
+        resnet_model.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        resnet_model.fc = nn.Linear(512,output_class_number)
+        model = resnet_model.to(device)
     
+
     model = resnet_model.to(device)        
     summary(model, input_size=(1, spectrogram_height, spectrogram_width))
 
@@ -296,6 +291,11 @@ if __name__ == "__main__":
       type=int,
       default=1000,
       help='Duration of audio in milliseconds',)
+    parser.add_argument(
+      '--model',
+      type=str,
+      default="resnet34",
+      help='Model name',)
     parser.add_argument('--wandb', action='store_true', help='Use wandb for logging')
     args = parser.parse_args()
     main(args)
