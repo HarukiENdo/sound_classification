@@ -30,7 +30,8 @@ from utils import *
 import random
 import torch.cuda.amp as amp
 from loss import FocalLoss
-
+from contextlib import redirect_stdout
+import yaml
 
 print("-------------------Cuda check-------------------")
 print("Cuda availability: ",torch.cuda.is_available())
@@ -55,7 +56,7 @@ def train(args):
     win_length_samples = int(NUM_SAMPLES*win_length_ms/1000)
     hop_length_samples = int(NUM_SAMPLES*hop_length_ms/1000)
     #------------Name setup --------------------------------
-    output_dir = f"./experiment/{args.project_name}/{args.model}_lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}"
+    output_dir = f"./experiment/{args.project_name}/{args.model}_optimizer_{args.optimizer}_loss_{args.loss}_lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     #------------Training setup ----------------------------
@@ -114,11 +115,23 @@ def train(args):
         scaler = torch.cuda.amp.GradScaler()
     else:
         scaler = None
+    # --------------Summary--------------------------------
+    summary_file_path = os.path.join(output_dir, "summary.txt")
+    args_file_path = os.path.join(output_dir, "args.yaml")
+    
+    with open(args_file_path, 'w') as f:
+        args_dict = vars(args)
+        yaml.dump(args_dict, f)
+    
+    with open(summary_file_path, 'w') as f:
+        with redirect_stdout(f):
+            summary(model, input_size=(1, spectrogram_height, spectrogram_width))
+    
+    print(args_dict)
+    # --------------Training loop---------------------------
     epochs = args.epochs
     loss_training_epochs = []
     loss_validation_epochs = []
-
-    # --------------Training loop---------------------------
     exec_time_start_time = time.time()
     early_stopping = EarlyStopping(patience=7, verbose=True)
     for i in range(epochs):
