@@ -1,5 +1,4 @@
 # 使用方法
-
 ## `train.py` の使用方法
 `python train.py --learning_rate 0.0005 --n_mels 30 --window_size 30 --project_name test`
 
@@ -25,3 +24,19 @@
 ### 実行方法
 `nohup ./experiments.sh <experiment_name> &`
 
+## TODO
+- [ ] 学習率のスケジューラを実装する
+- [ ] 事前処理の見直し
+- [x] モデル保存のタイミングを修正する
+- [ ] onnx変換用のコードを作成（onnxで推論できるか確認）
+  - [ ] half, quantizeの確認
+- [ ] 推論スクリプトを作成する
+- [ ] データ拡張手法を試す（SpecAugmentなど） 
+- [ ] 他のモデルアーキテクチャを試す（EfficientNetなど）
+- [ ] クロスバリデーションを実装する
+- [ ] テストデータでの評価を行う
+- [ ] 学習曲線をプロットする
+- [ ] ハイパーパラメータの最適化を行う
+- [ ] モデルの軽量化・高速化を試みる
+- [ ] 推論スクリプトを作成する
+- [ ] READMEを充実させる
