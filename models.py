@@ -10,8 +10,8 @@ class CNNNetwork1(nn.Module):
         super().__init__()
         self.conv1 = nn.Sequential(
             nn.Conv2d(
-                in_channels=1, # spectogram is treated as grayscale
-                out_channels=16,
+                in_channels=1,
+                out_channels=16, 
                 kernel_size=3,
                 stride=1,
                 padding=1
@@ -22,7 +22,7 @@ class CNNNetwork1(nn.Module):
             nn.Conv2d(
                 in_channels=16,
                 out_channels=32,
-                kernel_size=3,
+                kernel_size=3, 
                 stride=1,
                 padding=1
             ),
@@ -30,15 +30,13 @@ class CNNNetwork1(nn.Module):
         )
         self.flatten = nn.Flatten()
         self.linear = nn.Linear(32 * spectrogram_height * spectrogram_width, output_class_number)
-        self.softmax = nn.Softmax(dim=1)
-
+        
     def forward(self, input_data):
         x = self.conv1(input_data)
         x = self.conv2(x)
         x = self.flatten(x)
         logits = self.linear(x)
-        predictions = self.softmax(logits)
-        return predictions
+        return logits
 
 class CNNNetwork2(nn.Module):
     def __init__(self, spectrogram_height, spectrogram_width, output_class_number):
@@ -65,15 +63,13 @@ class CNNNetwork2(nn.Module):
         )
         self.flatten = nn.Flatten()
         self.linear = nn.Linear(8 * spectrogram_height * spectrogram_width, output_class_number)
-        self.softmax = nn.Softmax(dim=1)
-
+        
     def forward(self, input_data):
         x = self.conv1(input_data)
         x = self.conv2(x)
         x = self.flatten(x)
         logits = self.linear(x)
-        predictions = self.softmax(logits)
-        return predictions
+        return logits
 
 class CNNNetwork3(nn.Module):
     def __init__(self, spectrogram_height, spectrogram_width, output_class_number):
@@ -100,15 +96,13 @@ class CNNNetwork3(nn.Module):
         )
         self.flatten = nn.Flatten()
         self.linear = nn.Linear(16 * spectrogram_height * spectrogram_width, output_class_number)
-        self.softmax = nn.Softmax(dim=1)
 
     def forward(self, input_data):
         x = self.conv1(input_data)
         x = self.conv2(x)
         x = self.flatten(x)
         logits = self.linear(x)
-        predictions = self.softmax(logits)
-        return predictions
+        return logits
 
 class CNNNetwork4(nn.Module):
     def __init__(self, spectrogram_height, spectrogram_width, output_class_number):
@@ -155,7 +149,6 @@ class CNNNetwork4(nn.Module):
         )
         self.flatten = nn.Flatten()
         self.linear = nn.Linear(128 * spectrogram_height * spectrogram_width, output_class_number)
-        self.softmax = nn.Softmax(dim=1)
 
     def forward(self, input_data):
         x = self.conv1(input_data)
@@ -164,6 +157,5 @@ class CNNNetwork4(nn.Module):
         x = self.conv4(x)
         x = self.flatten(x)
         logits = self.linear(x)
-        predictions = self.softmax(logits)
-        return predictions
+        return logits
     
