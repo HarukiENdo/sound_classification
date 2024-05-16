@@ -212,6 +212,17 @@ def train(args):
         loss_validation_epochs.append(loss_validation_single_epoch)
     
         classification_report_val = classification_report(y_true_val, y_pred_val, target_names=CLASS_NAMES, output_dict=True)
+        # --------------Save model---------------------------        
+        if loss_validation_single_epoch < best_val_loss:
+            output_model_path_loss = f"{output_dir}/best_loss.pth"
+            best_val_loss = loss_validation_single_epoch
+            torch.save(model.state_dict(), output_model_path_loss)
+            print("Trained feed forward net saved at: ", output_model_path_loss)
+        if classification_report_val['accuracy'] > best_val_acc:
+            output_model_path_acc = f"{output_dir}/best_acc.pth"
+            best_val_acc = classification_report_val['accuracy']
+            torch.save(model.state_dict(), output_model_path_acc)
+            print("Trained feed forward net saved at: ", output_model_path_acc)
 
         print("Validation Classification Report:")
         print(classification_report_val)
@@ -219,15 +230,11 @@ def train(args):
         print(f"Training accuracy : {classification_report_train['accuracy']} ; Training loss : {loss_training_single_epoch}  ")
         print(f"Validation accuracy : {classification_report_val['accuracy']} ; Validation loss : {loss_validation_single_epoch} ")        
         print("---------------------------")
-
-
-
         # Early stopping check
         early_stopping(loss_validation_single_epoch)
         if early_stopping.early_stop:
             print("early stopping")
             break
-
     # --------------Wandb log---------------------------  
         if args.wandb:
             wandb.log({
@@ -279,31 +286,32 @@ def train(args):
     print("---------------------------")
     print("---------------------------")
     # --------------Test---------------------------
-    loss_test_single_epoch_array = []
-    y_true_test, y_pred_test = [], []
-    for input, target in test_data_loader:
-        input, target = input.to(device,dtype=torch.float32), target.to(device)
-        # calculate loss
-        prediction = model(input)
-        loss = loss_fn(prediction, target)
-    
-        loss_test_single_epoch_array.append(loss.item())
-    
-        y_true_test.extend(target.cpu().numpy())
-        y_pred_test.extend(torch.argmax(prediction, dim=1).cpu().numpy())
-    loss_test_single_epoch = np.array(loss_test_single_epoch_array).mean()
-    
-    print("\nTest Report:")
-    classification_report_test = classification_report(y_true_test, y_pred_test, target_names=CLASS_NAMES)
-    print(classification_report_test)
-    classification_report_test = classification_report(y_true_test, y_pred_test, target_names=CLASS_NAMES, output_dict=True)
-    print(classification_report_test)
-    print(f"\nTest accuracy : {classification_report_test['accuracy']} ; Test loss : {loss_test_single_epoch}  ")
-    print("---------------------------")
-    # --------------Save model---------------------------
-    output_model_path = f"{output_dir}/{args.project_name}.pth"
-    torch.save(model.state_dict(), output_model_path)
-    print("Trained feed forward net saved at: ", output_model_path)
+    for output_model_path in [output_model_path_loss, output_model_path_acc]:
+        model.load_state_dict(torch.load(output_model_path))
+        model.eval()
+        phase = output_model_path.split("/")[-1].split(".")[0]
+        loss_test_single_epoch_array = []
+        y_true_test, y_pred_test = [], []
+        for input, target in test_data_loader:
+            input, target = input.to(device,dtype=torch.float32), target.to(device)
+            # calculate loss
+            prediction = model(input)
+            loss = loss_fn(prediction, target)
+        
+            loss_test_single_epoch_array.append(loss.item())
+        
+            y_true_test.extend(target.cpu().numpy())
+            y_pred_test.extend(torch.argmax(prediction, dim=1).cpu().numpy())
+        loss_test_single_epoch = np.array(loss_test_single_epoch_array).mean()
+        
+        print("\nTest Report:")
+        classification_report_test = classification_report(y_true_test, y_pred_test, target_names=CLASS_NAMES)
+        print(classification_report_test)
+        classification_report_test = classification_report(y_true_test, y_pred_test, target_names=CLASS_NAMES, output_dict=True)
+        print(classification_report_test)
+        print(f"\n{phase} Test accuracy : {classification_report_test['accuracy']} ; Test loss : {loss_test_single_epoch}  ")
+        print("---------------------------")
+
 
 
 def main(args):
