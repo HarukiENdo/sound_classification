@@ -173,6 +173,7 @@ def train(args):
             else:
                 loss.backward()
                 optimiser.step()
+            
             scheduler.step()
             loss_training_single_epoch_array.append(loss.item())
             y_true_train.extend(target.cpu().numpy())
@@ -355,8 +356,11 @@ def main(args):
     seed_everything(args.seed)
     if args.wandb:
       wandb.init(entity="hideaki_yjm", name=f"{args.model}_optimizer_{args.optimizer}_loss_{args.loss}_lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}", project=args.project_name, config=args)
-    train(args)
-    wandb.finish()
+    try:
+        train(args)
+    finally:
+        if args.wandb:
+            wandb.finish()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
