@@ -24,8 +24,15 @@
 ### 実行方法
 `nohup ./experiments.sh <experiment_name> &`
 
+## `experiments2.sh` の使用方法
+使用方法はexperiments.shと同じです。
+同一のGPUで複数の実験を行うことができますが，使用するマシンのメモリを気にする場合は，
+`max_parallel_processes` を適宜変更してください。
+また，CUDA_VISIBLE_DEVICESも適宜変更してください。
+
+
 ## TODO
-- [ ] 学習率のスケジューラを実装する
+- [x] 学習率のスケジューラを実装する
 - [ ] 事前処理の見直し
 - [x] モデル保存のタイミングを修正する
 - [ ] onnx変換用のコードを作成（onnxで推論できるか確認）
