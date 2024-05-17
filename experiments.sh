@@ -1,8 +1,7 @@
 experiment=$1
-if [ ! -d $experiment ]; then
-    mkdir -p $experiment
+if [ ! -d ./experiment/$experiment ]; then
+    mkdir -p ./experiment/$experiment
 fi
-
 # for lr in 0.0005 0.005; do
 #     for n_mels in 30 40; do
 #         for window_size in 30 40; do
