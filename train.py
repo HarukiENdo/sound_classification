@@ -123,6 +123,11 @@ def train(args):
         optimiser = torch.optim.Adam(model.parameters(), lr=args.learning_rate)    
     elif args.optimizer == "adamw":
         optimiser = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=0.01)
+
+    steps_per_epoch = len(train_data_loader)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimiser, max_lr=args.learning_rate, 
+                                                    steps_per_epoch=steps_per_epoch, epochs=args.epochs)
+
     if args.amp:
         scaler = torch.cuda.amp.GradScaler()
     else:
@@ -168,19 +173,20 @@ def train(args):
             else:
                 loss.backward()
                 optimiser.step()
+            scheduler.step()
             loss_training_single_epoch_array.append(loss.item())
             y_true_train.extend(target.cpu().numpy())
             y_pred_train.extend(torch.argmax(prediction, dim=1).cpu().numpy())
             # イテレーション単位で精度を計算
             correct_predictions = (torch.argmax(prediction, dim=1) == target).sum().item()
             accuracy = correct_predictions / input.size(0)
-
             # イテレーション単位でログを取る
             if args.wandb:
                 wandb.log({
                     "iteration": i * len(train_data_loader) + batch_idx,
                     "train_loss_iter": loss.item(),
-                    "train_acc_iter": accuracy * 100
+                    "train_acc_iter": accuracy * 100,
+                    "lr": optimiser.param_groups[0]['lr']
                 })
         exec_time = time.time() - exec_time_start_time 
         loss_training_single_epoch = np.array(loss_training_single_epoch_array).mean()
@@ -190,7 +196,7 @@ def train(args):
         # Validation
         loss_validation_single_epoch_array = []
         y_true_val, y_pred_val, y_pred_val_proba = [], [], []
-        for input, target in val_data_loader:
+        for input, target in tqdm(val_data_loader):
             input, target = input.to(device,dtype=torch.float32), target.to(device)
             prediction = model(input)
             loss = loss_fn(prediction, target)
@@ -378,7 +384,7 @@ if __name__ == "__main__":
     parser.add_argument(
       '--project_name',
       type=str,
-      default="",
+      default="debug",
       help='Project name',)
     parser.add_argument(
       '--seed',
