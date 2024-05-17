@@ -311,6 +311,44 @@ def train(args):
         print(classification_report_test)
         print(f"\n{phase} Test accuracy : {classification_report_test['accuracy']} ; Test loss : {loss_test_single_epoch}  ")
         print("---------------------------")
+        if args.wandb:
+            wandb.log({
+                "test_loss": loss_test_single_epoch,
+                "test_acc": classification_report_test['accuracy'] * 100,
+                'precision_cut':classification_report_test['cut']['precision'],
+                'recall_cut':classification_report_test['cut']['recall'],
+                'f1-score_cut':classification_report_test['cut']['f1-score'],
+                'precision_car':classification_report_test['car']['precision'],
+                'recall_car':classification_report_test['car']['recall'],
+                'f1-score_car':classification_report_test['car']['f1-score'],
+                'precision_environ':classification_report_test['environ']['precision'],
+                'recall_environ':classification_report_test['environ']['recall'],
+                'f1-score_environ':classification_report_test['environ']['f1-score'],
+                'precision_fruit':classification_report_test['fruit']['precision'],
+                'recall_fruit':classification_report_test['fruit']['recall'],
+                'f1-score_fruit':classification_report_test['fruit']['f1-score'],
+                'precision_leaf':classification_report_test['leaf']['precision'],
+                'recall_leaf':classification_report_test['leaf']['recall'],
+                'f1-score_leaf':classification_report_test['leaf']['f1-score'],
+                'precision_talk':classification_report_test['talk']['precision'],
+                'recall_talk':classification_report_test['talk']['recall'],
+                'f1-score_talk':classification_report_test['talk']['f1-score'],
+                'precision_truck':classification_report_test['truck']['precision'],
+                'recall_truck':classification_report_test['truck']['recall'],
+                'f1-score_truck':classification_report_test['truck']['f1-score'],
+                'precision_unknown':classification_report_test['unknown']['precision'],
+                'recall_unknown':classification_report_test['unknown']['recall'],
+                'f1-score_unknown':classification_report_test['unknown']['f1-score'],
+                'precision_walk':classification_report_test['walk']['precision'],
+                'recall_walk':classification_report_test['walk']['recall'],
+                'f1-score_walk':classification_report_test['walk']['f1-score'],
+                'conf_mat': wandb.plot.confusion_matrix(probs=None,y_true=y_true_test,preds=y_pred_test,
+                    class_names=CLASS_NAMES),
+                'roc': wandb.plot.roc_curve(y_true_test, y_pred_test,
+                    labels=CLASS_NAMES),
+                'pr': wandb.plot.pr_curve(y_true_test, y_pred_test,
+                    labels=CLASS_NAMES),
+            })
 
 
 
