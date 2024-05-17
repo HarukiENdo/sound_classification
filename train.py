@@ -81,7 +81,6 @@ def train(args):
     spectrogram_width = mel_spectrogram.shape[2]
     output_class_number = len(CLASS_NAMES)
 
-
     # --------------Model setup---------------------------
     if args.model == "resnet18":
         print("model resnet18")
@@ -200,14 +199,7 @@ def train(args):
             y_true_val.extend(target.cpu().numpy())
             y_pred_val_proba.extend(prediction.cpu().detach().numpy()) #TODO: double check if original array is modified
             y_pred_val.extend(torch.argmax(prediction, dim=1).cpu().numpy())
-            # イテレーション単位で精度を計算
-            correct_predictions = (torch.argmax(prediction, dim=1) == target).sum().item()
-            accuracy = correct_predictions / input.size(0)
-            if args.wandb:
-                wandb.log({
-                    "val_loss_iter": loss.item(),
-                    "val_acc_iter": accuracy * 100,
-                })
+
         loss_validation_single_epoch = np.array(loss_validation_single_epoch_array).mean()
         loss_validation_epochs.append(loss_validation_single_epoch)
     
@@ -230,11 +222,7 @@ def train(args):
         print(f"Training accuracy : {classification_report_train['accuracy']} ; Training loss : {loss_training_single_epoch}  ")
         print(f"Validation accuracy : {classification_report_val['accuracy']} ; Validation loss : {loss_validation_single_epoch} ")        
         print("---------------------------")
-        # Early stopping check
-        early_stopping(loss_validation_single_epoch)
-        if early_stopping.early_stop:
-            print("early stopping")
-            break
+
     # --------------Wandb log---------------------------  
         if args.wandb:
             wandb.log({
@@ -280,6 +268,11 @@ def train(args):
                     labels=CLASS_NAMES)})
             wandb.log({"pr" : wandb.plot.pr_curve(y_true_val, y_pred_val_proba,
                     labels=CLASS_NAMES)})
+        # Early stopping check
+        early_stopping(loss_validation_single_epoch)
+        if early_stopping.early_stop:
+            print("early stopping")
+            break
 
     print("Finished training")
     print("---------------------------")
