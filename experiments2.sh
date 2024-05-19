@@ -7,14 +7,20 @@ fi
 max_parallel_processes=20
 
 for loss in cross_entropy focal_loss; do
-    for model in cnn_network1 cnn_network2 cnn_network3 cnn_network4; do
-        CUDA_VISIBLE_DEVICES=0 python train.py --wandb --loss $loss --model $model --project_name $project_name &> experiment/$project_name/train_${model}_${loss}.log &
-        
-        # 同時に実行するプロセス数を制限
-        if [ $(jobs | wc -l) -ge $max_parallel_processes ]; then
-            # 最大プロセス数に達したら、いずれかのプロセスが終了するまで待機
-            wait -n
-        fi
+    for optimizer in  adam adamw; do
+        for model in cnn_network4 resnet18 resnet34 resnet50; do
+            for learning_rate in 0.00005 0.0005; do
+                for window_size in 15,40,90; do
+                    CUDA_VISIBLE_DEVICES=0 python train.py --wandb --loss $loss --optimizer $optimizer --model $model --learing_rate $learing_rate --window_size $window_size --project_name $project_name &> experiment/$project_name/train_${model}_${loss}_${optimizer}_${learing_rate}_${window_size}.log &
+            
+                    # 同時に実行するプロセス数を制限
+                    if [ $(jobs | wc -l) -ge $max_parallel_processes ]; then
+                        # 最大プロセス数に達したら、いずれかのプロセスが終了するまで待機
+                        wait -n
+                    fi
+                done
+            done
+        done
     done
 done
 
