@@ -29,30 +29,20 @@ from dataset import AudioDataset
 from utils import *
 import random
 import torch.cuda.amp as amp
-<<<<<<< HEAD
-from loss import FocalLoss # ?
-from contextlib import redirect_stdout #?
-import yaml #?
-=======
-from loss import FocalLoss
+from loss import FocalLoss #クラス間の不均衡を考慮した損失関数Focalloss
 from contextlib import redirect_stdout
-import yaml
->>>>>>> main
-from models import CNNNetwork1, CNNNetwork2, CNNNetwork3, CNNNetwork4
+import yaml #yamlファイルを操作するためのモジュール
+from models import CNNNetwork1, CNNNetwork2, CNNNetwork3, CNNNetwork4 #models.pyで作成したモデル4つ
 
 print("-------------------Cuda check-------------------")
 print("Cuda availability: ",torch.cuda.is_available())
 print("Torch version: ", torch.__version__)
 
-
-def collate_fn(batch):
-    inputs, targets = zip(*batch)
-    inputs = torch.stack(inputs)
-    targets = torch.stack(targets)
+def collate_fn(batch): #データローダのカスタマイズ処理
+    inputs, targets = zip(*batch)    #入力とターゲットの分割 inputs=(input1,input2...),target=(target1,target2...)のようなタプルとなる
+    inputs = torch.stack(inputs)     #テンソルに変換
+    targets = torch.stack(targets)   
     return inputs, targets
-
-
-
 
 def train(args):
     NUM_SAMPLES = int(args.sample_rate*args.duration_ms/1000)
@@ -67,16 +57,12 @@ def train(args):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     #------------Training setup ----------------------------
-    device = device_check(display_device = True)
+    device = device_check(display_device = True) #True, 使用しているdevice(CPU,GPU)の情報が表示される
     train_dataset = AudioDataset(csv_path='/Corpus3/crime_prevention_sound/train.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device) 
-<<<<<<< HEAD
     val_dataset = AudioDataset(csv_path='/Corpus3/crime_prevention_sound/val.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device) #validデータのデータセットを分けて作成
     test_dataset = AudioDataset(csv_path='/Corpus3/crime_prevention_sound/test.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device) #testデータのデータセットを分けて作成
 
-=======
-    val_dataset = AudioDataset(csv_path='/Corpus3/crime_prevention_sound/val.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device) 
-    test_dataset = AudioDataset(csv_path='/Corpus3/crime_prevention_sound/test.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device)    
->>>>>>> main
+    #num_worker=8, collate_fnでカスタマイズ, pin_memoryはtrainのみTrue
     train_data_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=True, num_workers=8, pin_memory=True)
     val_data_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False, num_workers=8, pin_memory=False)
     test_data_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False, num_workers=8, pin_memory=False)
@@ -108,11 +94,7 @@ def train(args):
         print("model resnet50")
         model = resnet50(pretrained=True)
         model.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-<<<<<<< HEAD
         model.fc = nn.Linear(2048,output_class_number) #resnet50は2048
-=======
-        model.fc = nn.Linear(2048,output_class_number)
->>>>>>> main
     elif args.model == "cnn_network1":
         print("model cnn_network1")
         model = CNNNetwork1(spectrogram_height, spectrogram_width, output_class_number)
@@ -124,13 +106,8 @@ def train(args):
         model = CNNNetwork3(spectrogram_height, spectrogram_width, output_class_number)
     elif args.model == "cnn_network4":
         print("model cnn_network4")
-<<<<<<< HEAD
         model = CNNNetwork4(spectrogram_height, spectrogram_width, output_class_number)    
 
-=======
-        model = CNNNetwork4(spectrogram_height, spectrogram_width, output_class_number)
-      
->>>>>>> main
     model.to(device)
     summary(model, input_size=(1, spectrogram_height, spectrogram_width))
     # --------------Training setup---------------------------
@@ -143,9 +120,9 @@ def train(args):
     if args.optimizer == "adam":
         optimiser = torch.optim.Adam(model.parameters(), lr=args.learning_rate)    
     elif args.optimizer == "adamw":
-        optimiser = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=0.01)
+        optimiser = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=0.01) #Adamの変種、重みの減衰がAdamより効果的に機能する
     if args.amp:
-        scaler = torch.cuda.amp.GradScaler()
+        scaler = torch.cuda.amp.GradScaler() #mix_precisionのためのscaler
     else:
         scaler = None
     # --------------Summary--------------------------------
@@ -153,58 +130,24 @@ def train(args):
     args_file_path = os.path.join(output_dir, "args.yaml")
     
     with open(args_file_path, 'w') as f:
-        args_dict = vars(args)
-        yaml.dump(args_dict, f)
+        args_dict = vars(args) #パラメータの引数情報を持つargsオブジェクトを辞書に変換
+        yaml.dump(args_dict, f) #書込み
     
     with open(summary_file_path, 'w') as f:
-        with redirect_stdout(f):
+        with redirect_stdout(f): #summary.txtファイルにリダイレクト、summaryの出力をそのままsummary.txtに書込む
             summary(model, input_size=(1, spectrogram_height, spectrogram_width))
     
     print(args_dict)
 
-<<<<<<< HEAD
-=======
-    # --------------Training setup---------------------------
-    if args.loss == "cross_entropy":
-        loss_fn = nn.CrossEntropyLoss()
-    elif args.loss == "focal_loss":
-        loss_fn = FocalLoss()
 
-    if args.optimizer == "adam":
-        optimiser = torch.optim.Adam(model.parameters(), lr=args.learning_rate)    
-    elif args.optimizer == "adamw":
-        optimiser = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=0.01)
-
-    steps_per_epoch = len(train_data_loader)
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimiser, max_lr=args.learning_rate, 
-                                                    steps_per_epoch=steps_per_epoch, epochs=args.epochs)
-
-    if args.amp:
-        scaler = torch.cuda.amp.GradScaler()
-    else:
-        scaler = None
-    # --------------Summary--------------------------------
-    summary_file_path = os.path.join(output_dir, "summary.txt")
-    args_file_path = os.path.join(output_dir, "args.yaml")
-    
-    with open(args_file_path, 'w') as f:
-        args_dict = vars(args)
-        yaml.dump(args_dict, f)
-    
-    with open(summary_file_path, 'w') as f:
-        with redirect_stdout(f):
-            summary(model, input_size=(1, spectrogram_height, spectrogram_width))
-    
-    print(args_dict)
-    # --------------Training loop---------------------------
+   # --------------Training loop---------------------------
     epochs = args.epochs
     loss_training_epochs = []
     loss_validation_epochs = []
     exec_time_start_time = time.time()
     early_stopping = EarlyStopping(patience=7, verbose=True)
-    best_val_loss = float('inf')
+    best_val_loss = float('inf') #float('inf')は∞、earlystoppingのためのloss初期値
     best_val_acc = 0.0
->>>>>>> main
     for i in range(epochs):
         print(f"Epoch {i+1}")    
         loss_training_single_epoch_array = []
@@ -228,11 +171,11 @@ def train(args):
             
             scheduler.step()
             loss_training_single_epoch_array.append(loss.item())
-            y_true_train.extend(target.cpu().numpy())
-            y_pred_train.extend(torch.argmax(prediction, dim=1).cpu().numpy())
+            y_true_train.extend(target.cpu().numpy()) #バッチ内の正解ラベル('target')をCPUメモリに移動して,numpyに変換、この後の処理のため
+            y_pred_train.extend(torch.argmax(prediction, dim=1).cpu().numpy()) #モデルの出力で予測されたクラス(最大確率のクラス)のindexを取得、cpuに
             # イテレーション単位で精度を計算
-            correct_predictions = (torch.argmax(prediction, dim=1) == target).sum().item()
-            accuracy = correct_predictions / input.size(0)
+            correct_predictions = (torch.argmax(prediction, dim=1) == target).sum().item() #正解数を計算
+            accuracy = correct_predictions / input.size(0)                                 #input.size(0)はバッチサイズ、正解数/バッチサイズでイテレーションごとの正解率を求める
             # イテレーション単位でログを取る
             if args.wandb:
                 wandb.log({
@@ -258,67 +201,7 @@ def train(args):
             y_true_val.extend(target.cpu().numpy())
             y_pred_val_proba.extend(prediction.cpu().detach().numpy()) #TODO: double check if original array is modified
             y_pred_val.extend(torch.argmax(prediction, dim=1).cpu().numpy())
-<<<<<<< HEAD
-   # --------------Training loop---------------------------
-    epochs = args.epochs
-    loss_training_epochs = []
-    loss_validation_epochs = []
-    exec_time_start_time = time.time()
-    early_stopping = EarlyStopping(patience=7, verbose=True)
-    best_val_loss = float('inf')
-    best_val_acc = 0.0
-    for i in range(epochs):
-        print(f"Epoch {i+1}")    
-        loss_training_single_epoch_array = []
-        y_true_train, y_pred_train = [], []
-        for batch_idx, (input, target) in enumerate(tqdm(train_data_loader)):
-            optimiser.zero_grad()
-            input, target = input.to(device, dtype=torch.float32), target.to(device)
-            if args.amp:
-                with torch.cuda.amp.autocast():
-                    prediction = model(input)
-            else:
-                prediction = model(input)
-            loss = loss_fn(prediction, target)
-            if args.amp:
-                scaler.scale(loss).backward()
-                scaler.step(optimiser)
-                scaler.update()
-            else:
-                loss.backward()
-                optimiser.step()
-            loss_training_single_epoch_array.append(loss.item())
-            y_true_train.extend(target.cpu().numpy())
-            y_pred_train.extend(torch.argmax(prediction, dim=1).cpu().numpy())
-            # イテレーション単位で精度を計算
-            correct_predictions = (torch.argmax(prediction, dim=1) == target).sum().item()
-            accuracy = correct_predictions / input.size(0)
-
-            # イテレーション単位でログを取る
-            if args.wandb:
-                wandb.log({
-                    "iteration": i * len(train_data_loader) + batch_idx,
-                    "train_loss_iter": loss.item(),
-                    "train_acc_iter": accuracy * 100
-                })
-        exec_time = time.time() - exec_time_start_time 
-        loss_training_single_epoch = np.array(loss_training_single_epoch_array).mean()
-        loss_training_epochs.append(loss_training_single_epoch)
-        classification_report_train = classification_report(y_true_train, y_pred_train, target_names=CLASS_NAMES, output_dict=True)
-    
-        # Validation
-        loss_validation_single_epoch_array = []
-        y_true_val, y_pred_val, y_pred_val_proba = [], [], []
-        for input, target in val_data_loader:
-            input, target = input.to(device,dtype=torch.float32), target.to(device)
-            prediction = model(input)
-            loss = loss_fn(prediction, target)
-            loss_validation_single_epoch_array.append(loss.item())
-            # Convert tensor predictions to numpy arrays
-            y_true_val.extend(target.cpu().numpy())
-            y_pred_val_proba.extend(prediction.cpu().detach().numpy()) #TODO: double check if original array is modified
-            y_pred_val.extend(torch.argmax(prediction, dim=1).cpu().numpy())
-            # イテレーション単位で精度を計算
+            # イテレーション単位で精度を計算(1epoch)
             correct_predictions = (torch.argmax(prediction, dim=1) == target).sum().item()
             accuracy = correct_predictions / input.size(0)
             if args.wandb:
@@ -326,22 +209,18 @@ def train(args):
                     "val_loss_iter": loss.item(),
                     "val_acc_iter": accuracy * 100,
                 })
-=======
-
->>>>>>> main
         loss_validation_single_epoch = np.array(loss_validation_single_epoch_array).mean()
         loss_validation_epochs.append(loss_validation_single_epoch)
-    
         classification_report_val = classification_report(y_true_val, y_pred_val, target_names=CLASS_NAMES, output_dict=True)
         # --------------Save model---------------------------        
-        if loss_validation_single_epoch < best_val_loss:
+        if loss_validation_single_epoch < best_val_loss: #val_lossが最小であれば、best_loss.pthにモデルをsave,最良のモデルに上書きされてく
             output_model_path_loss = f"{output_dir}/best_loss.pth"
-            best_val_loss = loss_validation_single_epoch
+            best_val_loss = loss_validation_single_epoch #best_val_lossの値を更新
             torch.save(model.state_dict(), output_model_path_loss)
             print("Trained feed forward net saved at: ", output_model_path_loss)
-        if classification_report_val['accuracy'] > best_val_acc:
+        if classification_report_val['accuracy'] > best_val_acc: #val_accが最大であれば、best_acc.pthにモデルをsave,最良のモデルに上書きされてく
             output_model_path_acc = f"{output_dir}/best_acc.pth"
-            best_val_acc = classification_report_val['accuracy']
+            best_val_acc = classification_report_val['accuracy'] #best_val_accの値を更新
             torch.save(model.state_dict(), output_model_path_acc)
             print("Trained feed forward net saved at: ", output_model_path_acc)
 
@@ -352,17 +231,12 @@ def train(args):
         print(f"Validation accuracy : {classification_report_val['accuracy']} ; Validation loss : {loss_validation_single_epoch} ")        
         print("---------------------------")
 
-<<<<<<< HEAD
-
-
         # Early stopping check
         early_stopping(loss_validation_single_epoch)
-        if early_stopping.early_stop:
+        if early_stopping.early_stop: #early_stoppingがTrueになったら
             print("early stopping")
             break
 
-=======
->>>>>>> main
     # --------------Wandb log---------------------------  
         if args.wandb:
             wandb.log({
@@ -408,14 +282,6 @@ def train(args):
                     labels=CLASS_NAMES)})
             wandb.log({"pr" : wandb.plot.pr_curve(y_true_val, y_pred_val_proba,
                     labels=CLASS_NAMES)})
-<<<<<<< HEAD
-=======
-        # Early stopping check
-        early_stopping(loss_validation_single_epoch)
-        if early_stopping.early_stop:
-            print("early stopping")
-            break
->>>>>>> main
 
     print("Finished training")
     print("---------------------------")
@@ -489,19 +355,10 @@ def train(args):
 
 
 def main(args):
-    seed_everything(args.seed)
+    seed_everything(args.seed) #seedの設定
     if args.wandb:
-<<<<<<< HEAD
       wandb.init(entity="e-haruki", name=f"{args.project_name}_lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}", project=args.project_name, config=args)
     train(args)
-=======
-      wandb.init(entity="hideaki_yjm", name=f"{args.model}_optimizer_{args.optimizer}_loss_{args.loss}_lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}", project=args.project_name, config=args)
-    try:
-        train(args)
-    finally:
-        if args.wandb:
-            wandb.finish()
->>>>>>> main
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -513,18 +370,18 @@ if __name__ == "__main__":
     parser.add_argument(
         '--n_mels',
         type=int,
-        default=30,
+        default=40,
         help='Number of mels',)
     parser.add_argument(
         '--window_size',
         type=int,
-        default=30,
+        default=40,
         help='Window size of mel spectrogram',)
     parser.add_argument(
         '--epochs',
         '-e',
         type=int,
-        default=10,
+        default=20,
         help='Number of epochs',)
     parser.add_argument(
       '--project_name',
@@ -561,8 +418,4 @@ if __name__ == "__main__":
     parser.add_argument('--optimizer', type=str, default="adamw", help='Optimizer')
     parser.add_argument('--wandb', action='store_true', help='Use wandb for logging')
     args = parser.parse_args()
-<<<<<<< HEAD
     main(args)
-=======
-    main(args)
->>>>>>> main
