@@ -121,6 +121,10 @@ def train(args):
         optimiser = torch.optim.Adam(model.parameters(), lr=args.learning_rate)    
     elif args.optimizer == "adamw":
         optimiser = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=0.01) #Adamの変種、重みの減衰がAdamより効果的に機能する
+    steps_per_epoch = len(train_data_loader)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimiser, max_lr=args.learning_rate, 
+                                                    steps_per_epoch=steps_per_epoch, epochs=args.epochs)
+    
     if args.amp:
         scaler = torch.cuda.amp.GradScaler() #mix_precisionのためのscaler
     else:
@@ -168,7 +172,7 @@ def train(args):
             else:
                 loss.backward()
                 optimiser.step()
-            
+
             scheduler.step()
             loss_training_single_epoch_array.append(loss.item())
             y_true_train.extend(target.cpu().numpy()) #バッチ内の正解ラベル('target')をCPUメモリに移動して,numpyに変換、この後の処理のため
@@ -231,12 +235,6 @@ def train(args):
         print(f"Validation accuracy : {classification_report_val['accuracy']} ; Validation loss : {loss_validation_single_epoch} ")        
         print("---------------------------")
 
-        # Early stopping check
-        early_stopping(loss_validation_single_epoch)
-        if early_stopping.early_stop: #early_stoppingがTrueになったら
-            print("early stopping")
-            break
-
     # --------------Wandb log---------------------------  
         if args.wandb:
             wandb.log({
@@ -282,6 +280,12 @@ def train(args):
                     labels=CLASS_NAMES)})
             wandb.log({"pr" : wandb.plot.pr_curve(y_true_val, y_pred_val_proba,
                     labels=CLASS_NAMES)})
+            
+        # Early stopping check
+        early_stopping(loss_validation_single_epoch)
+        if early_stopping.early_stop: #early_stoppingがTrueになったら
+            print("early stopping")
+            break
 
     print("Finished training")
     print("---------------------------")
@@ -358,7 +362,11 @@ def main(args):
     seed_everything(args.seed) #seedの設定
     if args.wandb:
       wandb.init(entity="e-haruki", name=f"{args.project_name}_lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}", project=args.project_name, config=args)
-    train(args)
+    try:
+        train(args)
+    finally:
+        if args.wandb:
+            wandb.finish()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
