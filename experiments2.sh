@@ -3,6 +3,7 @@ if [ ! -d ./experiment/$project_name ]; then
     mkdir -p ./experiment/$project_name
 fi
 
+
 # GPUメモリを効率的に使用するために、複数のプロセスを並列に実行
 max_parallel_processes=20
 #実験条件の追加
