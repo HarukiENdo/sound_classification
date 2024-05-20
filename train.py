@@ -62,6 +62,10 @@ def train(args):
     val_dataset = AudioDataset(csv_path='/Corpus3/crime_prevention_sound/val.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device) #validデータのデータセットを分けて作成
     test_dataset = AudioDataset(csv_path='/Corpus3/crime_prevention_sound/test.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device) #testデータのデータセットを分けて作成
 
+    #batchサイズの変更
+    if args.model == "resnet50":
+        args.batch_size=512
+
     #num_worker=8, collate_fnでカスタマイズ, pin_memoryはtrainのみTrue
     train_data_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=True, num_workers=8, pin_memory=True)
     val_data_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False, num_workers=8, pin_memory=False)
