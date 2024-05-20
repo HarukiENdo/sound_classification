@@ -181,13 +181,14 @@ def train(args):
             correct_predictions = (torch.argmax(prediction, dim=1) == target).sum().item() #正解数を計算
             accuracy = correct_predictions / input.size(0)                                 #input.size(0)はバッチサイズ、正解数/バッチサイズでイテレーションごとの正解率を求める
             # イテレーション単位でログを取る
-            if args.wandb:
-                wandb.log({
-                    "iteration": i * len(train_data_loader) + batch_idx,
-                    "train_loss_iter": loss.item(),
-                    "train_acc_iter": accuracy * 100,
-                    "lr": optimiser.param_groups[0]['lr']
-                })
+            if batch_idx % 10 ==0:
+                if args.wandb:
+                    wandb.log({
+                        "iteration": i * len(train_data_loader) + batch_idx,
+                        "train_loss_iter": loss.item(),
+                        "train_acc_iter": accuracy * 100,
+                        "lr": optimiser.param_groups[0]['lr']
+                    })
         exec_time = time.time() - exec_time_start_time 
         loss_training_single_epoch = np.array(loss_training_single_epoch_array).mean()
         loss_training_epochs.append(loss_training_single_epoch)
@@ -205,14 +206,7 @@ def train(args):
             y_true_val.extend(target.cpu().numpy())
             y_pred_val_proba.extend(prediction.cpu().detach().numpy()) #TODO: double check if original array is modified
             y_pred_val.extend(torch.argmax(prediction, dim=1).cpu().numpy())
-            # イテレーション単位で精度を計算(1epoch)
-            correct_predictions = (torch.argmax(prediction, dim=1) == target).sum().item()
-            accuracy = correct_predictions / input.size(0)
-            if args.wandb:
-                wandb.log({
-                    "val_loss_iter": loss.item(),
-                    "val_acc_iter": accuracy * 100,
-                })
+
         loss_validation_single_epoch = np.array(loss_validation_single_epoch_array).mean()
         loss_validation_epochs.append(loss_validation_single_epoch)
         classification_report_val = classification_report(y_true_val, y_pred_val, target_names=CLASS_NAMES, output_dict=True)
