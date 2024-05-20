@@ -67,9 +67,9 @@ def train(args):
         args.batch_size=512
 
     #num_worker=8, collate_fnでカスタマイズ, pin_memoryはtrainのみTrue
-    train_data_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=True, num_workers=8, pin_memory=True)
-    val_data_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False, num_workers=8, pin_memory=False)
-    test_data_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False, num_workers=8, pin_memory=False)
+    train_data_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=True, num_workers=2, pin_memory=True)
+    val_data_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False, num_workers=1, pin_memory=False)
+    test_data_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False, num_workers=1, pin_memory=False)
     
     # サンプルデータの取得
     audio_sample_path = "/Corpus3/crime_prevention_sound/dataset/dataset_20231107/environ/20231101_2_終了_00009672.wav"
