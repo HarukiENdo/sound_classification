@@ -122,8 +122,9 @@ def train(args):
     elif args.optimizer == "adamw":
         optimiser = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=0.01) #Adamの変種、重みの減衰がAdamより効果的に機能する
     steps_per_epoch = len(train_data_loader)
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(optimiser, max_lr=args.learning_rate, 
-                                                    steps_per_epoch=steps_per_epoch, epochs=args.epochs)
+    #lrスケジューラー
+    # scheduler = torch.optim.lr_scheduler.OneCycleLR(optimiser, max_lr=args.learning_rate, 
+    #                                                 steps_per_epoch=steps_per_epoch, epochs=args.epochs)
     
     if args.amp:
         scaler = torch.cuda.amp.GradScaler() #mix_precisionのためのscaler
@@ -173,7 +174,7 @@ def train(args):
                 loss.backward()
                 optimiser.step()
 
-            scheduler.step()
+            # scheduler.step() lrスケジューラーの更新
             loss_training_single_epoch_array.append(loss.item())
             y_true_train.extend(target.cpu().numpy()) #バッチ内の正解ラベル('target')をCPUメモリに移動して,numpyに変換、この後の処理のため
             y_pred_train.extend(torch.argmax(prediction, dim=1).cpu().numpy()) #モデルの出力で予測されたクラス(最大確率のクラス)のindexを取得、cpuに
