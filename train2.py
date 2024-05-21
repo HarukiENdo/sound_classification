@@ -1,4 +1,4 @@
-#データpathなどを指定してください
+#データpathなどを指定
 import numpy as np
 import os
 import glob
