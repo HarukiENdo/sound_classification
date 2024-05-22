@@ -3,7 +3,7 @@ if [ ! -d ./experiment/$project_name ]; then
     mkdir -p ./experiment/$project_name
 fi
 
-#実験条件の追加
+#実験条件の追加　逐次実行
 for loss in cross_entropy focal_loss; do
     for optimizer in  adam adamw; do
         for model in cnn_network4 resnet18 resnet34 resnet50; do
