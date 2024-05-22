@@ -178,7 +178,7 @@ def train(args):
                 loss.backward()
                 optimiser.step()
 
-            # scheduler.step() lrスケジューラーの更新
+            # scheduler.step() lr_スケジューラーの更新
             loss_training_single_epoch_array.append(loss.item())
             y_true_train.extend(target.cpu().numpy()) #バッチ内の正解ラベル('target')をCPUメモリに移動して,numpyに変換、この後の処理のため
             y_pred_train.extend(torch.argmax(prediction, dim=1).cpu().numpy()) #モデルの出力で予測されたクラス(最大確率のクラス)のindexを取得、cpuに
