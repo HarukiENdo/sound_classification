@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-
+from torch.nn import Transformer
 
 # Create previous CNN model #todo: dropout and depthwise
 #CNNモデルの構築　モデルは4種類　depthwiseはpytorchでは使用できない
@@ -158,4 +158,21 @@ class CNNNetwork4(nn.Module):
         x = self.flatten(x)
         logits = self.linear(x)
         return logits
-    
+
+
+class TransformerModel(nn.Module):
+    def __init__(self, input_dim, num_heads, hidden_dim, num_layers, output_class_number):
+        super(TransformerModel, self).__init__()
+        self.embedding = nn.Linear(input_dim, hidden_dim)
+        encoder_layers = nn.TransformerEncoderLayer(d_model=hidden_dim, nhead=num_heads, dim_feedforward=hidden_dim * 4) #batch_first=Trueにすることで(batch_size,seq_len,feature_dim)になる
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layers, num_layers=num_layers)
+        self.output_layer = nn.Linear(hidden_dim, output_class_number)
+
+    def forward(self, src):
+        src = src.permute(2, 0, 1)
+        src = self.embedding(src)
+        # srcの形状は [seq_len, batch_size, hidden_dim] である必要があります
+        output = self.transformer_encoder(src)
+        # 最後のタイムステップの出力を分類器に渡します
+        output = self.output_layer(output[-1, :, :])
+        return output
