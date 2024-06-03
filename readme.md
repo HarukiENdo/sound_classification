@@ -1,3 +1,4 @@
+#不審音検出システムの環境音分類コードです。研究のデータディレクトリは伏せてあるので適宜変更して下さい
 # 使用方法
 ## `train.py` の使用方法
 `python train.py --learning_rate 0.0005 --n_mels 30 --window_size 30 --project_name test`
