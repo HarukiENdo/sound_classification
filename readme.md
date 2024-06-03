@@ -30,6 +30,8 @@
 `max_parallel_processes` を適宜変更してください。
 また，CUDA_VISIBLE_DEVICESも適宜変更してください。
 
+bashfileはtrain2.pyを実行します。train.pyを実行の際、bashfileを変更してください。
+
 
 ## TODO
 - [ ] 学習率のスケジューラを選択できるようにコード修正
