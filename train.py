@@ -9,6 +9,7 @@ import librosa.display
 import matplotlib.pyplot as plt
 import IPython.display as ipd
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from torchsummary import summary
 from torch.utils.data import WeightedRandomSampler
@@ -33,7 +34,7 @@ import torch.cuda.amp as amp
 from loss import FocalLoss
 from contextlib import redirect_stdout
 import yaml
-from models import CNNNetwork1, CNNNetwork2, CNNNetwork3, CNNNetwork4
+from models import CNNNetwork1, CNNNetwork2, CNNNetwork3, CNNNetwork4, Student_s, Student_m, StudentResNet
 import torch.nn.functional as F
 import multiprocessing
 
@@ -60,7 +61,7 @@ def train(args):
     win_length_samples = int(NUM_SAMPLES*win_length_ms/1000)
     hop_length_samples = int(NUM_SAMPLES*hop_length_ms/1000)
     #------------Name setup --------------------------------
-    output_dir = f"./experiment/{args.project_name}/{args.model}_optimizer_{args.optimizer}_loss_{args.loss}_lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}"
+    output_dir = f"./experiment_kd/{args.project_name}/{args.student}_optimizer_{args.optimizer}_loss_{args.loss}_lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}_alpha_{args.alpha}_temp_{args.temperature}"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     #------------Training setup ----------------------------
@@ -68,9 +69,9 @@ def train(args):
     print("Device: ", device)
     print("Number of CPU: ", multiprocessing.cpu_count())
 
-    train_dataset = AudioDataset(csv_path='train.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device) 
-    val_dataset = AudioDataset(csv_path='val.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device) 
-    test_dataset = AudioDataset(csv_path='test.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device)    
+    train_dataset = AudioDataset(csv_path='/Corpus3/crime_prevention_sound/train.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device) 
+    val_dataset = AudioDataset(csv_path='/Corpus3/crime_prevention_sound/val.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device) 
+    test_dataset = AudioDataset(csv_path='/Corpus3/crime_prevention_sound/test.csv',win_length_samples=win_length_samples,hop_length_samples=hop_length_samples,n_mels_value=args.n_mels, target_sample_rate=args.sample_rate, num_samples=NUM_SAMPLES, device=device)    
     
     print(f"Number of training dataset: {len(train_dataset)}")
     print(f"Number of validation dataset: {len(val_dataset)}")
@@ -80,7 +81,7 @@ def train(args):
     val_data_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False, num_workers=8, pin_memory=False)
     test_data_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False, num_workers=8, pin_memory=False)
     # サンプルデータの取得
-    audio_sample_path = ""
+    audio_sample_path = "/Corpus3/crime_prevention_sound/dataset/dataset_20231107/environ/20231101_2_終了_00009672.wav"
     signal_sample, sr = librosa.load(audio_sample_path, sr=args.sample_rate)
     mel_spectrogram = librosa.feature.melspectrogram(y=signal_sample, sr=sr, n_fft=win_length_samples, win_length=win_length_samples, hop_length=hop_length_samples, n_mels=args.n_mels)
     mel_spectrogram = librosa.power_to_db(mel_spectrogram, ref=np.max)  
@@ -91,37 +92,39 @@ def train(args):
     spectrogram_width = mel_spectrogram.shape[2]
     output_class_number = len(CLASS_NAMES)
 
-    # --------------Model setup---------------------------
+    # --------------Model setup(学習済みモデル　重みを固定---------------------------
     if args.model == "resnet18":
         print("model resnet18")
-        model = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
-        model.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-        model.fc = nn.Linear(512,output_class_number)
-    elif args.model == "resnet34": 
-        print("model resnet34")
-        model = resnet34(weights=ResNet34_Weights.IMAGENET1K_V1)
-        model.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-        model.fc = nn.Linear(512,output_class_number)
-    elif args.model == "resnet50":
-        print("model resnet50")
-        model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
-        model.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-        model.fc = nn.Linear(2048,output_class_number)
-    elif args.model == "cnn_network1":
-        print("model cnn_network1")
-        model = CNNNetwork1(spectrogram_height, spectrogram_width, output_class_number)
-    elif args.model == "cnn_network2":
-        print("model cnn_network2")
-        model = CNNNetwork2(spectrogram_height, spectrogram_width, output_class_number)
-    elif args.model == "cnn_network3":
-        print("model cnn_network3")
-        model = CNNNetwork3(spectrogram_height, spectrogram_width, output_class_number)
-    elif args.model == "cnn_network4":
-        print("model cnn_network4")
-        model = CNNNetwork4(spectrogram_height, spectrogram_width, output_class_number)
-      
-    model.to(device)
-    summary(model, input_size=(1, spectrogram_height, spectrogram_width))
+        teacher = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
+        teacher.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        teacher.fc = nn.Linear(512,output_class_number)
+
+    print("Type of teacher:", type(teacher))
+    teacher.to(device)
+    print("teacher_summary")
+    summary(teacher, input_size=(1, spectrogram_height, spectrogram_width))
+    teacher.load_state_dict(torch.load('experiment/0610_renset/resnet18_optimizer_adamw_loss_cross_entropy_lr0.0005_n_mels30_window_size15/best_acc.pth'))#読み込み
+
+    # ---------------Student model--------------------------------------------------
+    # ニューラルネットワークモデルの定義
+    """
+    #ニューラルネットワークを作成するには、nn.Moduleクラスを継承し、ニューラルネットワークのクラスを作成する
+    """
+    # studentモデルの選択
+    if args.student == "Student_s":
+        print("Student_s")
+        student = Student_s(output_class_number)
+    elif args.student == "Student_m":
+        print("Student_m")
+        student = Student_m(output_class_number)
+    elif args.student == "StudentResNet":
+        print("StudentResNet")
+        student = StudentResNet(output_class_number)
+
+    print("Type of student:", type(student))
+    student=student.to(device)
+    print("student_summary")
+    summary(student, input_size=(1, spectrogram_height, spectrogram_width))
 
     # --------------Training setup---------------------------
     if args.loss == "cross_entropy":
@@ -130,9 +133,13 @@ def train(args):
         loss_fn = FocalLoss()
 
     if args.optimizer == "adam":
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)    
+        optimizer = torch.optim.Adam(student.parameters(), lr=args.learning_rate)    
     elif args.optimizer == "adamw":
-        optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=0.01)
+        optimizer = torch.optim.AdamW(student.parameters(), lr=args.learning_rate, weight_decay=0.01)
+
+        #一貫性ロス(KLダイバージェンス)
+    #https://qiita.com/tand826/items/13d6480c66dd865ad9b5
+    kldiv = nn.KLDivLoss(reduction="batchmean", log_target=True)
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.valid_steps*2, eta_min=0)
 
@@ -150,11 +157,13 @@ def train(args):
     
     with open(summary_file_path, 'w') as f:
         with redirect_stdout(f):
-            summary(model, input_size=(1, spectrogram_height, spectrogram_width))
+            summary(student, input_size=(1, spectrogram_height, spectrogram_width))
     
     print(args_dict)
     # --------------Training loop---------------------------
     epochs = args.epochs
+    alpha = args.alpha
+    temperature = args.temperature
     loss_training_epochs = []
     loss_validation_epochs = []
     exec_time_start_time = time.time()
@@ -167,27 +176,46 @@ def train(args):
         y_true_train, y_pred_train = [], []
         #iteration単位でtqdmを使う
         for batch_idx, (input, target) in enumerate(tqdm(train_data_loader, desc="Training")):
-            model.train()
+            student.train()
             optimizer.zero_grad()
             input, target = input.to(device), target.to(device)
             if args.amp:
                 with torch.autocast(device_type=device, dtype=torch.float16, enabled=args.amp):
-                    prediction = model(input)
-                    loss = loss_fn(prediction, target)
+                    #分類ロス(クロスエントロピー)
+                    prediction_s = student(input)#studentモデル
+                    prediction_t = teacher(input)#Teacherモデル
+                    crossloss = loss_fn(prediction_s, target)
+                    sum_train_crossloss += crossloss.item()
+                    #一貫性ロス(KLダイバージェンス)
+                    kldivloss = kldiv((F.log_softmax(prediction_s/temperature, dim = 1)), (F.log_softmax(prediction_t/temperature, dim = 1)))
+                    sum_train_kldivloss += kldivloss.item()
+                    #https://qiita.com/M_Hiro/items/0ba24788c78540046bcd
+                    # loss = (1-alpha)*crossloss + alpha*temperature*temperature*kldivloss
+                    loss = (1-alpha)*crossloss + alpha*temperature*temperature*kldivloss
+                    train_loss += loss.item()
+                #Automatic Mixed Precision (AMP)を使用する際には、全体の損失 (loss) をバックプロパゲーションに使用するのが最適
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
             else:
-                prediction = model(input)
-                loss = loss_fn(prediction, target)
+                prediction_s = student(input)#studentモデル
+                prediction_t = teacher(input)#Teacherモデル
+                crossloss = loss_fn(prediction_s, target)
+                sum_train_crossloss += crossloss.item()
+                #一貫性ロス(KLダイバージェンス)
+                kldivloss = kldiv((F.log_softmax(prediction_s/temperature, dim = 1)), (F.log_softmax(prediction_t/temperature, dim = 1)))
+                sum_train_kldivloss += kldivloss.item()
+                #https://qiita.com/M_Hiro/items/0ba24788c78540046bcd
+                # loss = (1-alpha)*crossloss + alpha*temperature*temperature*kldivloss
+                loss = (1-alpha)*crossloss + alpha*temperature*temperature*kldivloss
                 loss.backward()
                 optimizer.step()
 
             loss_training_single_epoch_array.append(loss.item())
             y_true_train.extend(target.cpu().numpy())
-            y_pred_train.extend(torch.argmax(prediction, dim=1).cpu().numpy())
+            y_pred_train.extend(torch.argmax(prediction_s, dim=1).cpu().numpy())
             # イテレーション単位で精度を計算
-            correct_predictions = (torch.argmax(prediction, dim=1) == target).sum().item()
+            correct_predictions = (torch.argmax(prediction_s, dim=1) == target).sum().item()
             accuracy = correct_predictions / input.size(0)
             
             # 10ステップごとに平均を取ってログを記録
@@ -220,19 +248,29 @@ def train(args):
                 print("Validation step")
                 loss_validation_array = []
                 y_true_val, y_pred_val, y_pred_val_proba = [], [], []
-                model.eval()
+                student.eval()
                 for input, target in tqdm(val_data_loader):
                     input, target = input.to(device), target.to(device)
-                    with torch.no_grad():
-                        prediction = model(input)
-                        loss = loss_fn(prediction, target)
+                    with torch.no_grad(): #重み更新しない
+                        #分類ロス(クロスエントロピー)
+                        prediction_s = student(input)#studentモデル
+                        prediction_t = teacher(input)#Teacherモデル
+                        crossloss = loss_fn(prediction_s, target)
+                        sum_val_crossloss += crossloss.item()
+                        #一貫性ロス(KLダイバージェンス)
+                        kldivloss = kldiv((F.log_softmax(prediction_s/temperature, dim = 1)), (F.log_softmax(prediction_t/temperature, dim = 1)))
+                        sum_val_kldivloss += kldivloss.item()
+                        #https://qiita.com/M_Hiro/items/0ba24788c78540046bcd
+                        # loss = (1-alpha)*crossloss + alpha*temperature*temperature*kldivloss
+                        loss = (1-alpha)*crossloss + alpha*temperature*temperature*kldivloss
+
                         loss_validation_array.append(loss.item())
                         # Convert tensor predictions to numpy arrays
                         y_true_val.extend(target.cpu().numpy())
-                        y_pred_val_proba.extend(prediction.cpu().detach().numpy()) #TODO: double check if original array is modified
-                        y_pred_val.extend(torch.argmax(prediction, dim=1).cpu().numpy())
+                        y_pred_val_proba.extend(prediction_s.cpu().detach().numpy()) #TODO: double check if original array is modified
+                        y_pred_val.extend(torch.argmax(prediction_s, dim=1).cpu().numpy())
 
-                loss_validation = np.array(loss_validation_array).mean()
+                loss_validation = np.array(loss_validation_array).mean() #loss_validation_arrayの中の平均値
                 loss_validation_epochs.append(loss_validation)
             
                 classification_report_val = classification_report(y_true_val, y_pred_val, target_names=CLASS_NAMES, output_dict=True)
@@ -240,12 +278,12 @@ def train(args):
                 if loss_validation < best_val_loss:
                     output_model_path_loss = os.path.join(output_dir, "best_loss.pth")
                     best_val_loss = loss_validation
-                    torch.save(model.state_dict(), output_model_path_loss)
+                    torch.save(student.state_dict(), output_model_path_loss)
                     print("Trained feed forward net saved at: ", output_model_path_loss)
                 if classification_report_val['accuracy'] > best_val_acc:
                     output_model_path_acc = os.path.join(output_dir, "best_acc.pth")
                     best_val_acc = classification_report_val['accuracy']
-                    torch.save(model.state_dict(), output_model_path_acc)
+                    torch.save(student.state_dict(), output_model_path_acc)
                     print("Trained feed forward net saved at: ", output_model_path_acc)
 
                 print("Validation Classification Report:")
@@ -317,21 +355,29 @@ def train(args):
     print("Testing Start")
     # --------------Test---------------------------
     for output_model_path in [output_model_path_loss, output_model_path_acc]:
-        model.load_state_dict(torch.load(output_model_path))
+        student.load_state_dict(torch.load(output_model_path))
         print(f"Model loaded from {output_model_path}")
-        model.eval()
+        student.eval()
         phase = output_model_path.split("/")[-1].split(".")[0]
         loss_test = []
         y_true_test, y_pred_test, y_pred_test_proba = [], [], []
         with torch.no_grad():
             for input, target in tqdm(test_data_loader):
                 input, target = input.to(device,dtype=torch.float32), target.to(device)
-                prediction = model(input)
-                loss = loss_fn(prediction, target)            
+                #分類ロス(クロスエントロピー)
+                prediction_s = student(input)#studentモデル
+                prediction_t = teacher(input)#Teacherモデル
+                crossloss = loss_fn(prediction_s, target)
+                sum_test_crossloss += crossloss.item()
+                #一貫性ロス(KLダイバージェンス)
+                kldivloss = kldiv((F.log_softmax(prediction_s/temperature, dim = 1)), (F.log_softmax(prediction_t/temperature, dim = 1)))
+                sum_test_kldivloss += kldivloss.item()
+
+                loss = (1-alpha)*crossloss + alpha*temperature*temperature*kldivloss
                 loss_test.append(loss.item())
                 y_true_test.extend(target.cpu().numpy())
-                y_pred_test_proba.extend(prediction.cpu().detach().numpy()) #TODO: double check if original array is modified
-                y_pred_test.extend(torch.argmax(prediction, dim=1).cpu().numpy())
+                y_pred_test_proba.extend(prediction_s.cpu().detach().numpy()) #TODO: double check if original array is modified
+                y_pred_test.extend(torch.argmax(prediction_s, dim=1).cpu().numpy())
         loss_test = np.array(loss_test).mean()
         
         print("\nTest Report:")
@@ -394,7 +440,7 @@ def train(args):
 def main(args):
     seed_everything(args.seed)
     if args.wandb:
-      wandb.init(entity="", name=f"{args.model}_optimizer_{args.optimizer}_loss_{args.loss}_lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}", project=args.project_name, config={"max_plot_points": 20000})
+      wandb.init(entity="e-haruki", name=f"{args.student}_optimizer_{args.optimizer}_loss_{args.loss}_lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}_alpha_{args.alpha}_temp_{args.temperature}", project=args.project_name, config={"max_plot_points": 20000})
     try:
         train(args)
     finally:
@@ -459,6 +505,19 @@ if __name__ == "__main__":
       type=str,
       default="resnet18",
       help='Model name',)
+    parser.add_argument(
+      '--student',
+      type=str,
+      default="StudentResNet",
+      help="Model name",)
+    parser.add_argument(
+      '--alpha',
+      default=0.9,
+      help="alpha",)
+    parser.add_argument(
+      '--temperature',
+      default=10,
+      help="temperature",)
     parser.add_argument('--amp', action='store_true', default=True, help='Use mixed precision')
     parser.add_argument('--loss', type=str, default="cross_entropy", help='Loss function')
     parser.add_argument('--optimizer', type=str, default="adamw", help='Optimizer')
