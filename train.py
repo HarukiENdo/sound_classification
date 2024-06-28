@@ -61,7 +61,7 @@ def train(args):
     win_length_samples = int(NUM_SAMPLES*win_length_ms/1000)
     hop_length_samples = int(NUM_SAMPLES*hop_length_ms/1000)
     #------------Name setup --------------------------------
-    output_dir = f"./experiment/{args.project_name}/{args.student}_optimizer_{args.optimizer}_loss_{args.loss}_lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}_alpha_{args.alpha}_temp_{args.temperature}"
+    output_dir = f"./experiment_kd/{args.project_name}/{args.student}_optimizer_{args.optimizer}_loss_{args.loss}_lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}_alpha_{args.alpha}_temp_{args.temperature}"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     #------------Training setup ----------------------------
@@ -81,7 +81,7 @@ def train(args):
     val_data_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False, num_workers=8, pin_memory=False)
     test_data_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=False, num_workers=8, pin_memory=False)
     # サンプルデータの取得
-    audio_sample_path = "00009672.wav"
+    audio_sample_path = "environ.wav"
     signal_sample, sr = librosa.load(audio_sample_path, sr=args.sample_rate)
     mel_spectrogram = librosa.feature.melspectrogram(y=signal_sample, sr=sr, n_fft=win_length_samples, win_length=win_length_samples, hop_length=hop_length_samples, n_mels=args.n_mels)
     mel_spectrogram = librosa.power_to_db(mel_spectrogram, ref=np.max)  
@@ -103,7 +103,7 @@ def train(args):
     teacher.to(device)
     print("teacher_summary")
     summary(teacher, input_size=(1, spectrogram_height, spectrogram_width))
-    teacher.load_state_dict(torch.load('best_acc.pth'))#読み込み
+    teacher.load_state_dict(torch.load('experiment/0610_renset/resnet18_optimizer_adamw_loss_cross_entropy_lr0.0005_n_mels30_window_size15/best_acc.pth'))#読み込み
 
     # ---------------Student model--------------------------------------------------
     # ニューラルネットワークモデルの定義
@@ -174,6 +174,10 @@ def train(args):
         print(f"Epoch {i+1}")    
         loss_training_single_epoch_array = []
         y_true_train, y_pred_train = [], []
+        sum_train_crossloss = 0
+        sum_train_kldivloss = 0
+        sum_val_crossloss = 0
+        sum_val_kldivloss = 0
         #iteration単位でtqdmを使う
         for batch_idx, (input, target) in enumerate(tqdm(train_data_loader, desc="Training")):
             student.train()
@@ -192,7 +196,6 @@ def train(args):
                     #https://qiita.com/M_Hiro/items/0ba24788c78540046bcd
                     # loss = (1-alpha)*crossloss + alpha*temperature*temperature*kldivloss
                     loss = (1-alpha)*crossloss + alpha*temperature*temperature*kldivloss
-                    train_loss += loss.item()
                 #Automatic Mixed Precision (AMP)を使用する際には、全体の損失 (loss) をバックプロパゲーションに使用するのが最適
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
@@ -357,6 +360,8 @@ def train(args):
     for output_model_path in [output_model_path_loss, output_model_path_acc]:
         student.load_state_dict(torch.load(output_model_path))
         print(f"Model loaded from {output_model_path}")
+        sum_test_crossloss = 0
+        sum_test_kldivloss = 0
         student.eval()
         phase = output_model_path.split("/")[-1].split(".")[0]
         loss_test = []
@@ -366,14 +371,14 @@ def train(args):
                 input, target = input.to(device,dtype=torch.float32), target.to(device)
                 #分類ロス(クロスエントロピー)
                 prediction_s = student(input)#studentモデル
-                prediction_t = teacher(input)#Teacherモデル
-                crossloss = loss_fn(prediction_s, target)
-                sum_test_crossloss += crossloss.item()
+                # prediction_t = teacher(input)#Teacherモデル
+                loss = loss_fn(prediction_s, target)
+                # sum_test_crossloss += crossloss.item()
                 #一貫性ロス(KLダイバージェンス)
-                kldivloss = kldiv((F.log_softmax(prediction_s/temperature, dim = 1)), (F.log_softmax(prediction_t/temperature, dim = 1)))
-                sum_test_kldivloss += kldivloss.item()
+                # kldivloss = kldiv((F.log_softmax(prediction_s/temperature, dim = 1)), (F.log_softmax(prediction_t/temperature, dim = 1)))
+                # sum_test_kldivloss += kldivloss.item()
 
-                loss = (1-alpha)*crossloss + alpha*temperature*temperature*kldivloss
+                # loss = (1-alpha)*crossloss + alpha*temperature*temperature*kldivloss
                 loss_test.append(loss.item())
                 y_true_test.extend(target.cpu().numpy())
                 y_pred_test_proba.extend(prediction_s.cpu().detach().numpy()) #TODO: double check if original array is modified
@@ -440,7 +445,7 @@ def train(args):
 def main(args):
     seed_everything(args.seed)
     if args.wandb:
-      wandb.init(entity="wandb_name", name=f"{args.student}_optimizer_{args.optimizer}_loss_{args.loss}_lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}_alpha_{args.alpha}_temp_{args.temperature}", project=args.project_name, config={"max_plot_points": 20000})
+      wandb.init(entity="e-haruki", name=f"{args.student}_optimizer_{args.optimizer}_loss_{args.loss}_lr{args.learning_rate}_n_mels{args.n_mels}_window_size{args.window_size}_alpha_{args.alpha}_temp_{args.temperature}", project=args.project_name, config={"max_plot_points": 20000})
     try:
         train(args)
     finally:
